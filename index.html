@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brennstoffzellen-Simulator</title>
+<meta name="description" content="Interaktive Simulation einer PEM-Brennstoffzelle: Kennlinie, Verluste, Energiebilanz und Messprotokoll.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Brennstoffzellen-Simulator</h1>
+      <p class="sub">PEM-Brennstoffzelle H₂/O₂ · stationäres Einzelzellmodell mit Nernst-Spannung und drei Verlustarten</p>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div class="col">
+      <section class="panel" id="p-ctl" aria-label="Einstellungen">
+        <div class="group">
+          <h2>Betriebspunkt</h2>
+          <div class="ctl">
+            <label for="j">Stromdichte j <output id="j-out"></output></label>
+            <input type="range" id="j" min="0" max="1.5" step="0.01" value="0.80">
+          </div>
+          <div class="btnrow">
+            <button type="button" id="b-ocv">Leerlauf</button>
+            <button type="button" id="b-pmax">Maximale Leistung</button>
+          </div>
+        </div>
+        <div class="group">
+          <h2>Betriebsbedingungen</h2>
+          <div class="ctl">
+            <label for="T">Zelltemperatur <output id="T-out"></output></label>
+            <input type="range" id="T" min="30" max="90" step="1" value="70">
+          </div>
+          <div class="ctl">
+            <label for="pa">Druck Anode (absolut) <output id="pa-out"></output></label>
+            <input type="range" id="pa" min="1" max="3" step="0.1" value="1.5">
+          </div>
+          <div class="ctl">
+            <label for="pc">Druck Kathode (absolut) <output id="pc-out"></output></label>
+            <input type="range" id="pc" min="1" max="3" step="0.1" value="1.5">
+          </div>
+          <div class="ctl">
+            <span class="lbl">Kathodengas</span>
+            <fieldset class="seg">
+              <legend>Kathodengas</legend>
+              <input type="radio" name="gas" id="gas-air" value="air" checked><label for="gas-air">Luft (21 % O₂)</label>
+              <input type="radio" name="gas" id="gas-o2" value="o2"><label for="gas-o2">Reiner O₂</label>
+            </fieldset>
+          </div>
+          <div class="ctl">
+            <label for="RH">Befeuchtung der Gase <output id="RH-out"></output></label>
+            <input type="range" id="RH" min="20" max="100" step="5" value="100">
+          </div>
+        </div>
+        <div class="group">
+          <h2>Zellaufbau</h2>
+          <div class="ctl">
+            <label for="mem">Membran</label>
+            <select id="mem">
+              <option value="25">Nafion 211 · 25 µm</option>
+              <option value="51" selected>Nafion 212 · 51 µm</option>
+              <option value="127">Nafion 115 · 127 µm</option>
+              <option value="183">Nafion 117 · 183 µm</option>
+            </select>
+          </div>
+          <div class="ctl">
+            <label for="Pt">Platinbeladung Kathode <output id="Pt-out"></output></label>
+            <input type="range" id="Pt" min="0.05" max="0.6" step="0.05" value="0.4">
+          </div>
+        </div>
+        <div class="group">
+          <h2>Stack</h2>
+          <div class="ctl">
+            <label for="N">Anzahl Zellen <output id="N-out"></output></label>
+            <input type="range" id="N" min="1" max="400" step="1" value="60">
+          </div>
+          <div class="ctl">
+            <label for="A">Aktive Fläche je Zelle <output id="A-out"></output></label>
+            <input type="range" id="A" min="5" max="300" step="5" value="100">
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="p-stack">
+        <h2>Stack-Ausgabe</h2>
+        <dl class="kv">
+          <dt>Stackspannung</dt><dd id="s-U"></dd>
+          <dt>Strom</dt><dd id="s-I"></dd>
+          <dt>Elektrische Leistung</dt><dd id="s-P"></dd>
+          <dt>Abwärme</dt><dd id="s-Q"></dd>
+          <dt>H₂-Verbrauch</dt><dd id="s-H2"></dd>
+          <dt>H₂-Massenstrom</dt><dd id="s-H2m"></dd>
+          <dt>O₂-Verbrauch</dt><dd id="s-O2"></dd>
+          <dt>Produktwasser</dt><dd id="s-W"></dd>
+        </dl>
+        <p class="hint" style="margin-top:10px">Verbrauch nach dem Faradayschen Gesetz ṅ(H₂) = N·I/(2F), ohne Überschuss (Stöchiometrie 1). Normliter bei 0 °C und 1,013 bar.</p>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="panel" id="p-cell">
+        <div class="cellhead">
+          <h2>Zellschema</h2>
+          <button type="button" id="b-anim">Animation anhalten</button>
+        </div>
+        <canvas id="cell" aria-label="Animiertes Schema einer PEM-Brennstoffzelle mit Gaskanälen, Gasdiffusionsschichten, Katalysatorschichten, Membran und äußerem Stromkreis"></canvas>
+        <div class="legend">
+          <span><i class="dot" style="background:var(--h2)"></i>H₂</span>
+          <span><i class="dot" style="background:var(--o2)"></i>O₂</span>
+          <span><i class="dot" style="background:var(--n2)"></i>N₂</span>
+          <span><i class="dot" style="background:var(--h2o)"></i>H₂O</span>
+          <span><i class="dot" style="background:var(--hp)"></i>H⁺ (durch Membran)</span>
+          <span><i class="dot" style="background:var(--el)"></i>e⁻ (äußerer Stromkreis)</span>
+        </div>
+        <div class="rx">
+          <div><b>Anode</b><span>H₂ → 2 H⁺ + 2 e⁻</span></div>
+          <div><b>Kathode</b><span>½ O₂ + 2 H⁺ + 2 e⁻ → H₂O</span></div>
+          <div><b>Gesamt</b><span>H₂ + ½ O₂ → H₂O(l) &nbsp;·&nbsp; Δ<sub>R</sub>G° = −237 kJ/mol, Δ<sub>R</sub>H° = −286 kJ/mol</span></div>
+        </div>
+      </section>
+
+      <section id="tiles" aria-label="Messwerte am Betriebspunkt" style="display:flex;flex-direction:column;gap:10px">
+        <div class="tiles">
+          <div class="tile u-tile"><div class="k">Zellspannung</div><div class="v" id="t-U"></div></div>
+          <div class="tile"><div class="k">Stromdichte</div><div class="v" id="t-j"></div></div>
+          <div class="tile p-tile"><div class="k">Leistungsdichte</div><div class="v" id="t-P"></div></div>
+          <div class="tile"><div class="k">Wirkungsgrad (H<sub>u</sub>)</div><div class="v" id="t-eta"></div></div>
+        </div>
+        <div class="statusbar"><span id="chip" class="chip">Leerlauf</span><span id="status-text"></span></div>
+      </section>
+
+      <section class="panel" id="p-chart">
+        <h2>Kennlinie</h2>
+        <div class="chartlegend" id="chartlegend"></div>
+        <div class="chart-wrap"><canvas id="chart" aria-label="Strom-Spannungs-Kennlinie und Leistungskurve"></canvas></div>
+        <div class="btnrow" style="margin-top:10px">
+          <button type="button" id="b-ref">Kurve als Vergleich festhalten</button>
+          <button type="button" id="b-refclr">Vergleiche löschen</button>
+        </div>
+      </section>
+
+      <section class="panel" id="p-loss">
+        <h2>Energiebilanz am Betriebspunkt</h2>
+        <div class="bar" id="bar" role="img" aria-label="Aufteilung der Brennwertspannung"></div>
+        <div class="losslist" id="losslist"></div>
+        <p class="hint" style="margin-top:10px">Bezogen auf den Brennwert von H₂: 286 kJ/mol entsprechen 1,481 V. Alles außer der elektrischen Arbeit wird in der Zelle als Wärme frei.</p>
+        <div class="formula" id="formula"></div>
+      </section>
+    </div>
+  </div>
+
+  <div class="below">
+    <section class="panel">
+      <h2>Messprotokoll</h2>
+      <div class="btnrow">
+        <button type="button" class="primary" id="b-rec">Messpunkt aufnehmen</button>
+        <button type="button" id="b-sweep">Kennlinie automatisch messen</button>
+        <button type="button" id="b-copy">Tabelle kopieren</button>
+        <button type="button" id="b-clr">Tabelle leeren</button>
+      </div>
+      <div class="msg" id="msg" role="status"></div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Nr.</th><th>T in °C</th><th>Kathodengas</th><th>RH in %</th><th>j in A/cm²</th><th>U in V</th><th>P in W/cm²</th><th>η<sub>Hu</sub> in %</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="two">
+      <section class="panel">
+        <h2>Versuchsaufträge</h2>
+        <ol class="tasks">
+          <li>Nimm bei 70 °C, Luft und 100 % Befeuchtung eine U-j-Kennlinie mit mindestens acht Messpunkten auf und bestimme die maximale Leistungsdichte.</li>
+          <li>Vergleiche die Kennlinien für Luft und reinen Sauerstoff. Erkläre die Unterschiede bei kleiner und bei großer Stromdichte.</li>
+          <li>Senke die Befeuchtung schrittweise von 100 % auf 30 %. Beschreibe, welcher Verlustanteil sich ändert, und erkläre die Ursache.</li>
+          <li>Untersuche den Einfluss der Temperatur auf die Nernst-Spannung und auf die Zellspannung bei 1 A/cm². Erkläre deine Beobachtung.</li>
+          <li>Berechne für einen Stack mit 60 Zellen und 100 cm² bei 1 A/cm² den Wasserstoffverbrauch in Normlitern pro Minute und vergleiche mit der Anzeige.</li>
+          <li>Bestimme, bei welcher Stromdichte der Wirkungsgrad und bei welcher die Leistung am größten ist. Diskutiere, was daraus für die Auslegung eines Brennstoffzellenfahrzeugs folgt.</li>
+          <li>Halbiere die Platinbeladung. Bestimme die Spannungsänderung bei 0,2 A/cm² und vergleiche sie mit der Tafel-Steigung des Modells.</li>
+        </ol>
+      </section>
+      <section class="panel prose">
+        <h2>Modell und Grenzen</h2>
+        <p>Das Programm rechnet ein stationäres, isothermes Modell einer einzelnen PEM-Zelle. Die reversible Spannung folgt aus der Nernst-Gleichung mit den Partialdrücken von H₂ und O₂ nach Abzug des Wasserdampfs; E° sinkt mit ΔS/2F um 0,846 mV pro Kelvin.</p>
+        <p>Aktivierungsverluste entstehen im Modell nur an der Kathode, weil die Sauerstoffreduktion um Größenordnungen langsamer ist als die Wasserstoffoxidation. Sie werden mit der Butler-Volmer-Gleichung in symmetrischer arsinh-Form berechnet (α = 1, Aktivierungsenergie 66 kJ/mol, j₀ proportional zur Platinbeladung). Ein konstanter interner Strom von 2 mA/cm² steht für Wasserstoff, der durch die Membran diffundiert. Er erklärt, warum die Leerlaufspannung deutlich unter der Nernst-Spannung liegt.</p>
+        <p>Der Membranwiderstand stammt aus dem Springer-Modell für Nafion: Die Protonenleitfähigkeit hängt vom Wassergehalt λ der Membran und von der Temperatur ab. Dazu kommen 0,03 Ω·cm² Kontaktwiderstand. Der Stofftransportverlust ist empirisch mit B = 0,07 V; die Grenzstromdichte steigt mit dem O₂-Partialdruck und geht bei hohem Druck in eine Sättigung über.</p>
+        <p>Nicht abgebildet sind das Fluten der Elektroden mit flüssigem Wasser, Temperaturverteilungen, Gasverarmung entlang des Kanals, Katalysatoralterung und dynamisches Verhalten. Die Parameter liegen in realistischen Bereichen, sind aber an keine bestimmte kommerzielle Zelle angepasst.</p>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script src="js/model.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

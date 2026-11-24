@@ -1,0 +1,9 @@
+{
+  "name": "brennstoffzellen-simulator",
+  "version": "1.0.0",
+  "description": "Interaktive Simulation einer PEM-Brennstoffzelle im Browser",
+  "private": true,
+  "scripts": {
+    "test": "node --test \"tests/*.test.js\""
+  }
+}
